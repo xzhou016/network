@@ -10,10 +10,10 @@ except socket.error, msg:
  
 print 'Socket Created'
  
-host = 'localhost'
-port = 9161
-#host = 'www.google.com'
-#port = 80
+#host = 'localhost'
+#port = 9161
+host = 'www.google.com'
+port = 80
 
 try:
     remote_ip = socket.gethostbyname( host )
@@ -31,8 +31,8 @@ s.connect((remote_ip , port))
 print 'Socket Connected to ' + host + ' on ip ' + remote_ip
 
 #Send some data to remote server
-message = 'hi from client'
- 
+message = "GET / HTTP/1.1\r\n\r\n"
+
 try :
     #Set the whole string
     s.sendall(message)
