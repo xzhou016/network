@@ -37,21 +37,22 @@ def clientthread(conn):
 		if data[0:2] == '!q':
 			break
 		elif data[0:8] == '!sendall':
-			for member in myList:
-				member.sendall(data[9:1024])
+			#for member in myList:
+			print 	#	member.sendall(data[9:1024])
 		else:
-			reply = 'Ok...' + data
-			conn.sendall(reply)
+			reply = 'Received data from forwarder ' + data
+			print reply
+			break
 	#came out of loop
 	conn.close()
-	myList.remove(conn)
+	#myList.remove(conn)
  
 #now keep talking with the client
 while 1:
 	#wait to accept a connection - blocking call
 	#wait to accept a connection - blocking call
 	conn, addr = s.accept()
-	myList.append(conn)
+	#myList.append(conn)
 	print 'Connected with ' + addr[0] + ':' + str(addr[1])
 
 	#start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.

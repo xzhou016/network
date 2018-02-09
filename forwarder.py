@@ -9,7 +9,7 @@ SERVER_PORT = 8888
 
 #Define a new list
 myList = []
- 
+dataList = [] 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 print 'Socket created'
  
@@ -27,8 +27,7 @@ print 'Socket now listening'
 
 #connect to server
 sc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-remote_ip = socket.gethostbyname(host)
-sc.connect((remote_ip, SERVER_PORT))
+remote_ip = socket.gethostbyname(HOST)
 
 
 #Function for handling connections. This will be used to create threads
@@ -37,35 +36,39 @@ def clientthread(conn):
 	conn.send('Welcome to the forwarder. Type something and hit enter\n')
 	#infinite loop so that function do not terminate and thread do not end.
 	while True:
-		
 		#Receiving from client
 		data = conn.recv(1024)
-		if data[0:2] == '!fw':
-			reply = 'Ok from forwarder...' + data
-		conn.sendall(reply)
-		elif data[0:7] == '!report':
-			for member in myList:
-				member.sendall(member)
-		else:
-			reply = 'Received data from forwarder ' + data
-			start_new_thread(forwardtoserverthread ,(reply,))
+		data = data.split()
+		#print data
+		#param, send_host ,send_port, msg = data.split()
+		if data[0]  == '!fw':
+			#connect to server
+			sc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			remote_ip = socket.gethostbyname(data[1])
+			reply = 'Ok from forwarder...' + data[3] + '\n'
+			conn.sendall(reply)
+			sc.connect((remote_ip, int(data[2])))
+                        sc.sendall(data[3]+ '\n')
+			dataList.append(str(HOST))
+			dataList.append(str(PORT))
+			dataList.append(str(sc.getsockname()))
+			dataList.append(data[3]+ '\n')
+			myList.append(dataList)
+			sc.close()
+		elif data[0]  == '!report':
+			for i in myList:
+				print i	
+		elif data[0]  == '!q':
+			break
 	#came out of loop
 	conn.close()
-	myList.remove(conn)
 
-#Forwarding thread
-def forwardtoseverthread(msg):
-	sc.sendall(msg)
-	sc.close()
- 
 #now keep talking with the client
 while 1:
 	#wait to accept a connection - blocking call
 	conn, addr = s.accept()
-	myList.append(conn)
 	print 'Connected with ' + addr[0] + ':' + str(addr[1])
 	#start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
 	start_new_thread(clientthread ,(conn,))
-	print myList
 
 s.close()
