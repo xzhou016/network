@@ -3,7 +3,9 @@ import sys
 from thread import *
  
 HOST = 'localhost'   #  available interfaces
-PORT = 8888 # my port
+PORT = 8880 # my port
+SERVER_PORT = 8888
+
 
 #Define a new list
 myList = []
@@ -26,35 +28,43 @@ print 'Socket now listening'
 
 #Function for handling connections. This will be used to create threads
 def clientthread(conn):
-    #Sending message to connected client
-    conn.send('Welcome to the server. Type something and hit enter\n') #send only takes string
      
     #infinite loop so that function do not terminate and thread do not end.
     while True:
          
         #Receiving from client
         data = conn.recv(1024)
-        if data[0:2] == '!q':
-           break
-        elif data[0:8] == '!sendall':
+        if data[0:2] == '!fw':
+           reply = 'Ok from forwarder...' + data
+	   conn.sendall(reply)
+        elif data[0:7] == '!report':
             for member in myList:
-                member.sendall(data[9:1024])
+                member.sendall(member)
         else:
-            reply = 'Ok...' + data
-            conn.sendall(reply)
+            reply = 'Received data from forwarder ' + data
+            start_new_thread(forwardtoserverthread ,(reply,))
     #came out of loop
     conn.close()
     myList.remove(conn)
+
+#Forwarding thread
+def forwardtoseverthread(msg):
+    sc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    remote_ip = socket.gethostbyname(host)
+    sc.connect((remote_ip, SERVER_PORT))
+    sc.sendall(msg)
  
 #now keep talking with the client
 while 1:
+    #Sending message to connected client
+    conn.send('Welcome to the forwarder. Type something and hit enter\n')
     #wait to accept a connection - blocking call
     #wait to accept a connection - blocking call
     conn, addr = s.accept()
     myList.append(conn)
     print 'Connected with ' + addr[0] + ':' + str(addr[1])
-
     #start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
     start_new_thread(clientthread ,(conn,))
+    print myList
 
 s.close()

@@ -10,10 +10,10 @@ except socket.error, msg:
  
 print 'Socket Created'
  
-#host = 'localhost'
-#port = 9161
-host = 'www.google.com'
-port = 80
+host = 'localhost'
+port = 8880
+#host = 'www.google.com'
+#port = 80
 
 try:
     remote_ip = socket.gethostbyname( host )
