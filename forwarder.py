@@ -48,7 +48,7 @@ def clientthread(conn):
 			reply = 'Ok from forwarder...' + data[3] + '\n'
 			conn.sendall(reply)
 			sc.connect((remote_ip, int(data[2])))
-                        sc.sendall(data[3]+ '\n')
+			sc.sendall(data[3]+ '\n')
 			dataList.append(str(HOST))
 			dataList.append(str(PORT))
 			dataList.append(str(sc.getsockname()))
@@ -68,7 +68,8 @@ while 1:
 	#wait to accept a connection - blocking call
 	conn, addr = s.accept()
 	print 'Connected with ' + addr[0] + ':' + str(addr[1])
-	#start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
+	#start new thread takes 1st argument as a function name to be run, 
+	#second is the tuple of arguments to the function.
 	start_new_thread(clientthread ,(conn,))
 
 s.close()
