@@ -39,6 +39,9 @@ except socket.error, msg:
 	sys.exit()
 print 'Socket bind complete' 
 
+#TODO:
+# Count down for sockstream 
+# Put each in a thread
 #Set all pocket to listen
 s1.listen(10)
 s2.listen(10)
