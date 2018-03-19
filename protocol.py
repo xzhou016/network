@@ -1,98 +1,186 @@
 import socket
 import sys
+import threading
 from thread import *
 from sys import argv
 import commands
 from uuid import getnode as get_mac
- 
-HOST = argv[1]   #  available interfaces
-ips = commands.getoutput("/sbin/ifconfig | grep -i \"inet\" | awk '{print $2}'")
-print ips
-#PORT = int(argv[1]) # my port
-SERVER_PORT = 8888
-#myip = socket.gethostbyaddr(argv[1])
-#print myip
-#mymac = argv[2]
-#myport= int(argv[3])
+import copy
 
+ips = commands.getoutput("/sbin/ifconfig | grep -i \"inet\" | awk '{print substr($2,6)}'| head -1")
+#print ips
 
 #Define a new list
+ipList = ['10.0.0.1', '10.0.0.2', '10.0.0.3', '10.0.0.4']
 portList = [1, 2, 3]
+portCostList = []
+status = []
+statusList = []
+dataList = []
+addrList = []
+macList = []
+
+#Define mininum distant for port
+min_dist = float('Inf')
+count_broadcast = 5
+count_recv = 10
 
 #Create 4 sockets
-s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s3 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s3 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 print 'Socket created' 
-print  (s1 , s2 ,s3 )
+#print  (s1 , s2 ,s3 )
 
 #Bind all sockets
 try:
-	s1.bind((HOST, portList[0]))
-	s2.bind((HOST, portList[1]))
-	s3.bind((HOST, portList[2]))
 	s1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
 	s2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
 	s3.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
+	s1.bind((ips, portList[0]))
+	s2.bind((ips, portList[1]))
+	s3.bind((ips, portList[2]))
 except socket.error, msg:
 	print 'Bind failed. Error code: ' + str(msg[0]) + '\nMessage: ' + msg[1]
 	sys.exit()
 print 'Socket bind complete' 
 
-#Set all pocket to listen
-s1.listen(10)
-s2.listen(10)
-s3.listen(10)
-print 'Socket now listening'
+def myBPDU():
+	#Generate Bridge Protocol Data Unit
+	myPriority = '32768'
+	myMac = commands.getoutput("/sbin/ifconfig | grep -i \"HWaddr\" | awk '{print $5}'")
+	iMac = get_mac()
+	BPDU = myPriority + ',' + str(iMac) + ',' + myMac
+	return BPDU
 
+def create_port_table():
+	for i in portList:
+		status.append('')
+		status.append(i)
+		status.append('RP')
+	#print status
 
-#Generate Bridge Protocol Data Unit
-myPriority = '32768:'
-myMac = commands.getoutput("/sbin/ifconfig | grep -i \"HWaddr\" | awk '{print $5}'")
-BPDU = [myPriority, myMac, myPriority + myMac]
-print BPDU
-#print 'BPDU as int: '
-#print get_mac()
-
-def broadcast(conn):
 	
+#broadcast and receive threads
+def broadcast_timer():
+	global count_broadcast
+	global count_recv
+	if count_broadcast:
+		threading.Timer(5.0,broadcast_timer).start()
+		broadcast()
+		count_broadcast = count_broadcast - 1
+		count_recv = count_recv - 1
+		
+def receive_timer():
+	global count_broadcast
+	global count_recv
+	if count_broadcast:
+		threading.Timer(2.0,receive_timer).start()
+		receive()
+	elif count_recv <= 5:
+		
+		cost = elect_root()
+		#print 'lowest cost mac: ' , cost
+		set_mac(cost)
+		count_recv = count_recv - 1
+
+def broadcast():
+	#remove self
+	#print ipList
+	if ips in ipList:
+		ipList.remove(ips)
+	#send out BPDU to all ports
+	for ip in ipList:
+		for port in portList:
+			#print 'sending to:', ip, port
+			s1.sendto(myBPDU(), (ip, port))
+			s2.sendto(myBPDU(), (ip, port))
+			s3.sendto(myBPDU(), (ip, port)) 
+
+def populate_data_addr():
+	dataList.append(myBPDU())
+	for port in portList:
+		addrList.append((ips, port))
+	#print dataList, addrList
+
+def receive():
+	#get messege from port 1
+	data , addr= s1.recvfrom(1024)
+	if data not in dataList:
+		dataList.append(data)
+	if addr not in addrList:
+		addrList.append(addr)
+	
+	#get messege from port 2
+	data , addr= s2.recvfrom(1024)
+	if data not in dataList:
+		dataList.append(data)
+	if addr not in addrList:
+		addrList.append(addr)
+	
+	#get messege from port 3
+	data , addr= s3.recvfrom(1024)
+	if data not in dataList:
+		dataList.append(data)
+	if addr not in addrList:
+		addrList.append(addr)
+	print "Received: ", dataList, addrList
+	
+	
+def elect_root():
+	for data in dataList:
+		data = data.split(',')
+		macList.append(data)
+	#print macList
+		
+	for mac in macList:
+		cost = float(mac[0]) * float(mac[1])
+		if cost not in portCostList:
+			portCostList.append(cost)
+	#print portCostList
+	return portCostList.index(min(portCostList))
+
+
+def set_mac(addr):
+	for i in portList:
+		if status:
+			del status[:]
+		status.append(macList[addr][2])
+		status.append(i)
+		status.append('DP')
+		statusList.append(copy.copy(status))
+		del addrList[addr]
+	del macList[addr]
+	print addrList
+	
+	for mac in macList:
+		if status:
+			del status[:]
+		status.append(mac[2])
+		status.append(addrList[addr][1])
+		status.append('RP')
+		statusList.append(copy.copy(status))
+		del addrList[addr]
+		
+	for addr in addrList:
+		if status:
+			del status[:]
+		status.append(mac[2])
+		status.append(addr[1])
+		status.append('BP')
+		statusList.append(copy.copy(status))
+	
+	#print dataList
+	print statusList
+		
+
+	
+#create_port_table()
+populate_data_addr()
+broadcast_timer() #broadcast self on all ports
+receive_timer() #finish grabing all forward messege
 
 
 
-#Function for handling connections. This will be used to create threads
-def clientthread(conn):
-	#Sending message to connected client
-	conn.send('Welcome to the forwarder. Type something and hit enter\n')
-	#infinite loop so that function do not terminate and thread do not end.
-	while True:
-		#Receiving from client
-		data = conn.recv(1024)
-		data = data.split()
-		print data
-		if data[0] == 'pingmac':
-			sc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			remote_ip = socket.gethostbyname(arp[1])
-			reply = 'arp '
-			#conn.sendall(reply)
-			sc.connect((remote_ip, arp[4]))
-			sc.sendall(reply)			
+#populate_bridge_table()
 
-		if data[0]  == '!q':
-			break
-	#came out of loop
-	conn.close()
-	s1.close()
-	s2.close()
-	s3.close()
-	sys.exit()
-
-#now keep talking with the client
-while 1:
-	#wait to accept a connection - blocking call
-	conn, addr = s1.accept()
-	print 'Connected with ' + addr[0] + ':' + str(addr[1])
-	#start new thread takes 1st argument as a function name to be run, 
-	#second is the tuple of arguments to the function.
-	start_new_thread(clientthread ,(conn,))
-
-s1.close()

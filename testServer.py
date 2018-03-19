@@ -6,6 +6,7 @@ parser.add_option('-p', dest='port', type='int', default=8000)
 (options, args) = parser.parse_args()
 
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
 s.bind( (options.ip, options.port) )
 
 f = open('test.txt','w')
